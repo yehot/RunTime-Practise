@@ -8,6 +8,8 @@
 
 #import "ViewController.h"
 #import <objc/runtime.h>
+#import <objc/message.h>
+#import "ANYMethodLog.h"
 
 @interface ViewController ()
 
@@ -18,15 +20,16 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-//    [self showCustomClassNameOnly];
-//    [self showAllClassNameInProject];
-    [self flexShowClassNames];
+//    [self printCustomClassNameOnly];
+//    [self printAllClassNameInProject];
+//    [self flexPrintClassNames];
+    [self printClassInfo:@"MobClickApp"];
 }
 
 #pragma mark - get private class name
 
 // FLEX 中的实现方式
-- (void)flexShowClassNames {
+- (void)flexPrintClassNames {
     unsigned int classNamesCount = 0;
     
     // 用 executablePath 获取当前 app image
@@ -47,7 +50,7 @@
     }
 }
 
-- (void)showCustomClassNameOnly {
+- (void)printCustomClassNameOnly {
     
     // int objc_getClassList(Class *buffer, int bufferCount) 获取已经注册的类
     // 第一个参数 buffer ：已分配好内存空间的数组，
@@ -69,8 +72,8 @@
     free(classes);
 }
 
-// show all
-- (void)showAllClassNameInProject {
+// print all
+- (void)printAllClassNameInProject {
     // Class *objc_copyClassList(unsigned int *outCount)
     // 该函数的作用是获取所有已注册的类，和上述函数 objc_getClassList 参数传入 NULL 和  0 时效果一样
     // 代码相对简单：
@@ -82,6 +85,68 @@
         NSLog(@"当前项目中全部 class: %@", className);
     }
     free(classes);
+}
+
+#pragma mark - get property/method
+
+- (void)printClassInfo:(NSString *)className {
+    Class cName = NSClassFromString(className);
+    [self printPropertyListWithClass:cName];
+    
+    // print method 可参考： https://github.com/qhd/ANYMethodLog
+    [self printMethodListWithClass:cName];
+//    [ANYMethodLog logMethodWithClass:cName condition:^BOOL(SEL sel) {
+//        NSLog(@"ANYMethodLog method ===== %@", NSStringFromSelector(sel));
+//        return NO;
+//    } before:nil after:nil];
+    
+    [self printProtocalListWithClass:cName];
+}
+
+// 类的所有属性
+- (void)printPropertyListWithClass:(Class)className {
+    
+    unsigned int methodCount = 0;
+    Ivar * ivars = class_copyIvarList(className, &methodCount);
+    for (int i = 0; i < methodCount; i ++) {
+        Ivar ivar = ivars[i];
+        const char * name = ivar_getName(ivar);
+        const char * type = ivar_getTypeEncoding(ivar);
+        NSLog(@"ivar[%d] ----  %s : %s", i, type, name);
+    }
+    free(ivars);
+}
+
+- (void)printMethodListWithClass:(Class)className {
+    unsigned int methodCount = 0;
+    Method *methodList = class_copyMethodList(className, &methodCount);
+    for (int i = 0; i < methodCount; i++) {
+        Method method = methodList[i];
+        SEL mName = method_getName(method);
+        NSLog(@"instance method[%d] ---- %@", i, NSStringFromSelector(mName));
+    }
+    free(methodList);
+    
+    const char *clsName = class_getName(className);
+    Class metaClass = objc_getMetaClass(clsName);
+    Method *classMethodList = class_copyMethodList(metaClass, &methodCount);
+    for (int i = 0; i < methodCount ; i ++) {
+        Method method = classMethodList[i];
+        SEL selector = method_getName(method);
+        NSLog(@"class method[%d] ---- %@", i, NSStringFromSelector(selector));
+    }
+    free(classMethodList);
+}
+
+- (void)printProtocalListWithClass:(Class)className {
+    unsigned int methodCount = 0;
+    __unsafe_unretained Protocol **protocolList = class_copyProtocolList([self class], &methodCount);
+    for (int i = 0; i < methodCount; i++) {
+        Protocol *protocal = protocolList[i];
+        const char *pName = protocol_getName(protocal);
+        NSLog(@"protocol[%d] ---- %@", i, [NSString stringWithUTF8String:pName]);
+    }
+    free(protocolList);
 }
 
 @end
